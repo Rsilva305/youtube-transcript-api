@@ -43,17 +43,3 @@ def health():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000)
-```
-
-5. Scroll down and click **"Commit changes"**
-6. Click **"Commit changes"** again in the popup
-
-### **Step 4: Create `requirements.txt`**
-1. Click the repository name at the top to go back to the main page
-2. Click **"Add file"** → **"Create new file"**
-3. Name it: `requirements.txt`
-4. Paste this:
-```
-flask
-youtube-transcript-api
-gunicorn
