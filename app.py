@@ -5,20 +5,51 @@ import requests
 import os
 import logging
 
-# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Get proxy from environment variable
 PROXY_STRING = os.environ.get('WEBSHARE_PROXY', '')
 
-# Log proxy status on startup
 if PROXY_STRING:
     logger.info(f"✅ Proxy configured: {PROXY_STRING[:20]}...")
 else:
-    logger.warning("⚠️ No proxy configured - WEBSHARE_PROXY not found")
+    logger.warning("⚠️ No proxy configured")
+
+@app.route('/test-proxy', methods=['GET'])
+def test_proxy():
+    """Test if the proxy is working"""
+    if not PROXY_STRING:
+        return jsonify({"error": "No proxy configured"}), 500
+    
+    try:
+        parts = PROXY_STRING.split(':')
+        proxy_host = parts[0]
+        proxy_port = parts[1]
+        proxy_user = parts[2]
+        proxy_pass = parts[3]
+        
+        proxy_url = f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}"
+        
+        # Test the proxy by checking our IP
+        response = requests.get(
+            'https://api.ipify.org?format=json',
+            proxies={'http': proxy_url, 'https': proxy_url},
+            timeout=10
+        )
+        
+        return jsonify({
+            "proxy_works": True,
+            "your_ip_through_proxy": response.json()['ip'],
+            "proxy_used": f"{proxy_host}:{proxy_port}"
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "proxy_works": False,
+            "error": str(e)
+        }), 500
 
 @app.route('/transcript', methods=['GET'])
 def get_transcript():
@@ -28,14 +59,8 @@ def get_transcript():
         return jsonify({"error": "video_id parameter required"}), 400
     
     try:
-        # Set up proxy if provided
         if PROXY_STRING:
-            # Format: host:port:username:password
             parts = PROXY_STRING.split(':')
-            if len(parts) != 4:
-                logger.error(f"Invalid proxy format. Expected 4 parts, got {len(parts)}")
-                return jsonify({"error": "Invalid proxy configuration"}), 500
-                
             proxy_host = parts[0]
             proxy_port = parts[1]
             proxy_user = parts[2]
@@ -68,22 +93,17 @@ def get_transcript():
         })
         
     except TranscriptsDisabled:
-        logger.error(f"Transcripts disabled for video: {video_id}")
         return jsonify({"error": "Transcripts are disabled for this video"}), 404
     except VideoUnavailable:
-        logger.error(f"Video unavailable: {video_id}")
         return jsonify({"error": "Video not found or unavailable"}), 404
     except Exception as e:
-        logger.error(f"Error fetching transcript: {str(e)}")
+        logger.error(f"Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/health', methods=['GET'])
 def health():
     proxy_status = "enabled" if PROXY_STRING else "disabled"
-    return jsonify({
-        "status": "healthy",
-        "proxy": proxy_status
-    }), 200
+    return jsonify({"status": "healthy", "proxy": proxy_status}), 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000)
